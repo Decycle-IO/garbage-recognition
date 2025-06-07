@@ -1,9 +1,8 @@
 import requests
 
 class JetsonConsumer:
-    def __init__(self, hostname):
+    def __init__(self, hostname='192.168.57.211:3000'):
         self.hostname = hostname
-
 
     def open_door(self):
         requests.get(f"http://{self.hostname}/open_door")

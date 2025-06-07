@@ -3,6 +3,7 @@ import cv2
 from ultralytics import YOLO
 from trash_servo import TrashCom, CMDS  # Assuming this file exists and works
 import threading
+from jetsonConsumer import JetsonConsumer 
 
 
 
@@ -11,7 +12,7 @@ class GarbageClassifier:
     def __init__(self, model_path='last.pt'):
         self.model = YOLO(model_path)
         self.bin = TrashCom()
-
+        self.consumer = JetsonConsumer()
         # Mapping labels (adjust based on your model's actual output names)
         # self.model.names will contain the actual names your model uses for class IDs
         # It's better to rely on self.model.names if possible, or ensure these lists match
@@ -164,13 +165,13 @@ class GarbageClassifier:
                     print(
                         f"Category '{self.current_detection_category}' detected for {self.MIN_DETECTION_DURATION}s. Triggering action.")
                     if self.current_detection_category == 'plastic':
-                        self.bin.send_cmd(CMDS.PLASTIC)
+                        self.consumer.plastic()
                     elif self.current_detection_category == 'metal':
-                        self.bin.send_cmd(CMDS.METAL)
+                        self.consumer.metal()
                     elif self.current_detection_category == 'paper':
-                        self.bin.send_cmd(CMDS.PAPER)  # Assuming you have CMDS.PAPER
+                        self.consumer.other()
                     else:  # 'rest'
-                        self.bin.send_cmd(CMDS.OTHER)
+                        self.consumer.other()
 
                     self.action_triggered_for_this_detection = True
                     action_taken_this_frame = True  # Signal that an action was taken
@@ -277,16 +278,16 @@ if __name__ == "__main__":
     #     OTHER = "OTHER_CMD"
     # CMDS = MockCMDS() # if you uncomment this block
 
-    gc = GarbageClassifier(model_path='yolov8n.pt')  # Using a generic model for testing
+    gc = GarbageClassifier(model_path='last.pt')  # Using a generic model for testing
     # If 'last.pt' is your specific model, ensure its class names are handled in classify_label
 
     # Check available cameras if source 2 is problematic
     # for i in range(5):
-    #     cap_test = cv2.VideoCapture(i)
+    #     cap_test = cqv2.VideoCapture(i)
     #     if cap_test.isOpened():
     #         print(f"Camera index {i} is available.")
     #         cap_test.release()
     #     else:
     #         print(f"Camera index {i} is NOT available.")
 
-    gc.run_video_stream(video_source=2)  # Use 0 for default webcam, or your IP cam URL
+    gc.run_video_stream(video_source=0)  # Use 0 for default webcam, or your IP cam URL
