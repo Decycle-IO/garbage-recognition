@@ -4,13 +4,14 @@ from ultralytics import YOLO
 from trash_servo import TrashCom, CMDS  # Assuming this file exists and works
 import threading
 from jetsonConsumer import JetsonConsumer 
-
+from model_interface import BaseModel
+from yolo_model_interface import YOLOModel
 
 
 
 class GarbageClassifier:
-    def __init__(self, model_path='last.pt'):
-        self.model = YOLO(model_path)
+    def __init__(self, detection_model: BaseModel):
+        self.model = detection_model
         self.bin = TrashCom()
         self.consumer = JetsonConsumer()
         # Mapping labels (adjust based on your model's actual output names)
@@ -103,95 +104,79 @@ class GarbageClassifier:
         return 'rest'  # Default category
 
     def _process_frame_logic(self, frame_to_process):
-        """
-        Processes a single frame for object detection, updates stability tracking,
-        and decides if an action should be triggered.
-        Returns the annotated frame and a boolean indicating if an action was triggered.
-        """
+
         if frame_to_process is None:
             return None, False
 
         output_frame = frame_to_process.copy()
-        results = self.model(frame_to_process, verbose=False)  # verbose=False for less console output
+        detections = self.model.predict(frame_to_process)
 
         detected_categories_in_frame = set()
         action_taken_this_frame = False
-        best_current_detection = None  # To handle multiple detections, pick one
+        best_current_detection = None
 
-        for result in results:
-            boxes = result.boxes
-            for box in boxes:
-                conf = float(box.conf[0])
-                if conf < self.CONFIDENCE_THRESHOLD:
-                    continue
+        for det in detections:
+            conf = det['confidence']
+            if conf < self.CONFIDENCE_THRESHOLD:
+                continue
 
-                cls_id = int(box.cls[0])
-                label = self.model.names[cls_id]
-                category = self.classify_label(label)
+            class_id = det['class_id']
+            label = self.model.get_label(class_id)
+            category = self.classify_label(label)
 
-                xyxy = box.xyxy[0].cpu().numpy().astype(int)
-                x1, y1, x2, y2 = xyxy
-                diagonal = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+            x1, y1, x2, y2 = det['bbox']
+            diagonal = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
 
-                if not (self.MIN_DIAGONAL_PX < diagonal < self.MAX_DIAGONAL_PX):
-                    # print(f"Skipping {label} due to size: {diagonal:.2f}px")
-                    continue
+            if not (self.MIN_DIAGONAL_PX < diagonal < self.MAX_DIAGONAL_PX):
+                continue
 
-                # Consider this a valid detection for stability logic
-                detected_categories_in_frame.add(category)
+            detected_categories_in_frame.add(category)
 
-                # For drawing, we can draw all valid boxes
-                color_map = {'plastic': (0, 255, 0), 'metal': (0, 0, 255), 'paper': (255, 255, 0),
-                             'rest': (128, 128, 128)}
-                color = color_map.get(category, (255, 255, 255))
-                cv2.rectangle(output_frame, (x1, y1), (x2, y2), color, 2)
-                cv2.putText(output_frame, f'{category} {conf:.2f}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color,
-                            2)
+            # Draw detection box
+            color_map = {
+                'plastic': (0, 255, 0),
+                'metal': (0, 0, 255),
+                'paper': (255, 255, 0),
+                'rest': (128, 128, 128)
+            }
+            color = color_map.get(category, (255, 255, 255))
+            cv2.rectangle(output_frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(output_frame, f'{category} {conf:.2f}', (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-                # Logic for stability: pick one dominant category for action triggering
-                # If multiple objects, this will prefer the first one processed that meets criteria
-                # A more robust system might prioritize by size or confidence
-                if best_current_detection is None:
-                    best_current_detection = category
+            if best_current_detection is None:
+                best_current_detection = category
 
-        # --- Stability and Action Logic ---
+        # --- Stability and Action Triggering ---
         current_time = time.time()
 
         if best_current_detection is not None:
             if self.current_detection_category == best_current_detection:
-                # Same category still detected
                 if not self.action_triggered_for_this_detection and \
                         (current_time - self.detection_start_time >= self.MIN_DETECTION_DURATION):
-                    print(
-                        f"Category '{self.current_detection_category}' detected for {self.MIN_DETECTION_DURATION}s. Triggering action.")
-                    if self.current_detection_category == 'plastic':
-                        self.consumer.plastic()
-                    elif self.current_detection_category == 'metal':
-                        self.consumer.metal()
-                    elif self.current_detection_category == 'paper':
-                        self.consumer.other()
-                    else:  # 'rest'
-                        self.consumer.other()
+                    print(f"Category '{self.current_detection_category}' detected for required duration. Triggering action.")
+
+                    # API Calls for Jetson to act on the detection
+                    # if self.current_detection_category == 'plastic':
+                    #     self.consumer.plastic()
+                    # elif self.current_detection_category == 'metal':
+                    #     self.consumer.metal()
+                    # elif self.current_detection_category == 'paper':
+                    #     self.consumer.other()
+                    # else:
+                    #     self.consumer.other()
 
                     self.action_triggered_for_this_detection = True
-                    action_taken_this_frame = True  # Signal that an action was taken
+                    action_taken_this_frame = True
             else:
-                # New category detected, or switch from another category
                 print(f"New potential detection: '{best_current_detection}'. Starting timer.")
                 self.current_detection_category = best_current_detection
                 self.detection_start_time = current_time
                 self.action_triggered_for_this_detection = False
-        else:
-            pass
-            # No valid (best) detection in this frame
-            # if self.current_detection_category is not None:
-            #     print(f"Category '{self.current_detection_category}' no longer detected. Resetting timer.")
-            #     self.current_detection_category = None
-            #     self.detection_start_time = None
-            #     self.action_triggered_for_this_detection = False
 
-        self.last_processed_display_frame = output_frame  # Store for display during sleep
+        self.last_processed_display_frame = output_frame
         return output_frame, action_taken_this_frame
+
 
     def run_video_stream(self, video_source=0):
         self.start_camera_capture(video_source)
@@ -277,8 +262,8 @@ if __name__ == "__main__":
     #     PAPER = "PAPER_CMD"
     #     OTHER = "OTHER_CMD"
     # CMDS = MockCMDS() # if you uncomment this block
-
-    gc = GarbageClassifier(model_path='last.pt')  # Using a generic model for testing
+    detection_model = YOLOModel(model_path='best.pt')
+    gc = GarbageClassifier(detection_model=detection_model)  # Using a generic model for testing
     # If 'last.pt' is your specific model, ensure its class names are handled in classify_label
 
     # Check available cameras if source 2 is problematic
