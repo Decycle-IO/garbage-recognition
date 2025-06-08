@@ -4,8 +4,8 @@ from ultralytics import YOLO
 from trash_servo import TrashCom, CMDS  # Assuming this file exists and works
 import threading
 from jetsonConsumer import JetsonConsumer 
-from model_interface import BaseModel
-from yolo_model_interface import YOLOModel
+from model_interfaces.base_model_interface import BaseModel
+from model_interfaces.yolo_model_interface import YOLOModel
 
 
 
@@ -177,7 +177,6 @@ class GarbageClassifier:
         self.last_processed_display_frame = output_frame
         return output_frame, action_taken_this_frame
 
-
     def run_video_stream(self, video_source=0):
         self.start_camera_capture(video_source)
 
@@ -251,6 +250,6 @@ class GarbageClassifier:
 
 # Example usage
 if __name__ == "__main__":
-    detection_model = YOLOModel(model_path='best.pt')
+    detection_model = YOLOModel(model_path='./models/best.pt')
     gc = GarbageClassifier(detection_model=detection_model)  # Using a generic model for testing
     gc.run_video_stream(video_source=0)  # Use 0 for default webcam, or your IP cam URL

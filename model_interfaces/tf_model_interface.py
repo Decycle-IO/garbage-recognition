@@ -1,4 +1,4 @@
-from model_interface import BaseModel
+from model_interfaces.base_model_interface import BaseModel
 import tensorflow as tf
 import numpy as np
 import cv2

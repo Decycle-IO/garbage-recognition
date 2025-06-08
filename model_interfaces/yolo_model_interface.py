@@ -1,5 +1,5 @@
 from ultralytics import YOLO
-from model_interface import BaseModel
+from model_interfaces.base_model_interface import BaseModel
 
 class YOLOModel(BaseModel):
     def __init__(self, model_path):
