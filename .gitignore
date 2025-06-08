@@ -10,3 +10,6 @@
 /robflow.py
 /yolov8n.pt
 .idea
+**/data/
+*.pt
+./models/
