@@ -8,9 +8,6 @@ class CMDS:
     OPEN_DOOR = '4'
     CLOSE_DOOR = '5'
 
-
-
-
 class TrashCom:
     def __init__(self, port='/dev/ttyACM0', baudrate=115200):
         self.port = port

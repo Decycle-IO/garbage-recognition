@@ -10,3 +10,9 @@
 /robflow.py
 /yolov8n.pt
 .idea
+**/data/
+*.pt
+./models/
+./tests/
+**/__pycache__/
+*.pyc
