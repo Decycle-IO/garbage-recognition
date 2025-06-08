@@ -251,28 +251,6 @@ class GarbageClassifier:
 
 # Example usage
 if __name__ == "__main__":
-    # Make sure trash_servo.py and CMDS are defined correctly.
-    # For testing without actual serial, you can mock TrashCom:
-    # class MockTrashCom:
-    #     def send_cmd(self, cmd):
-    #         print(f"MockTrashCom: Sending command {cmd}")
-    # class MockCMDS:
-    #     PLASTIC = "PLASTIC_CMD"
-    #     METAL = "METAL_CMD"
-    #     PAPER = "PAPER_CMD"
-    #     OTHER = "OTHER_CMD"
-    # CMDS = MockCMDS() # if you uncomment this block
     detection_model = YOLOModel(model_path='best.pt')
     gc = GarbageClassifier(detection_model=detection_model)  # Using a generic model for testing
-    # If 'last.pt' is your specific model, ensure its class names are handled in classify_label
-
-    # Check available cameras if source 2 is problematic
-    # for i in range(5):
-    #     cap_test = cqv2.VideoCapture(i)
-    #     if cap_test.isOpened():
-    #         print(f"Camera index {i} is available.")
-    #         cap_test.release()
-    #     else:
-    #         print(f"Camera index {i} is NOT available.")
-
     gc.run_video_stream(video_source=0)  # Use 0 for default webcam, or your IP cam URL
